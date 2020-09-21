@@ -1,0 +1,54 @@
+(*La complejidad computacional teórica del algoritmo de ordenación
+ por fusión es de O(n log n), y podemos ver a continuación como
+ esto coincide a grandes rasgos con nuestras implementaciones de 
+ la ordenación por fusión.
+ No es necesario que msort2 sea recursiva terminal, dado que las 
+ funciones que utiliza (merge_t,divide_t) si lo son, y no van dejando
+ operaciones pendientes, por lo que no produce stack overflow.
+
+let time f x = 
+ let t = Sys.time () in
+  let _ = f x in
+   let tn = (Sys.time () -. t) in
+   (tn, tn /. (t ** log t));;
+
+let msort_time = 
+ let n = [2000;4000;8000;16000;32000;64000] in
+        let random_list = (r_list_t 300000) in
+          let m_sort' = (m_sort (<)) in 
+            List.map (time m_sort') (List.map random_list  n);;
+ _____________ __________________ ______________________
+|             |                  |                      |
+|      n      |      m_sort      |   t(n)/O(n log n)    |
+|_____________|__________________|______________________|
+|             |                  |                      |
+|     2000    |    0.00399999    |     2.41531889e-08   |
+|     4000    |    0.00400000    |     2.41322848e-08   |
+|     8000    |    0.00799999    |     4.82228012e-08   |
+|    16000    |    0.01600000    |     9.62787680e-08   |
+|    32000    |    0.03999999    |    23.98651317e-08   |
+|    64000    |    0.10399999    |    61.82786830e-08   |
+|_____________|__________________|______________________|
+m_sort produce Stack overflow para listas de mas de 64000 elementos
+
+
+let msort2_time = 
+ let n = [2000;4000;8000;16000;32000;64000;128000;256000;512000] in
+     let random_list = (r_list_t 300000) in
+       let m_sort' = (m_sort2 (<=)) in
+         List.map (time m_sort') (List.map random_list n);;
+ _____________ __________________ _______________________
+|             |                  |                       |
+|      n      |      m_sort2     |    t(n)/O(n log n)    |
+|_____________|__________________|_______________________|
+|             |                  |                       |
+|     1000    |    0.00399999    |      1.38031371e-08   |
+|     4000    |    0.00400000    |      1.37918526e-08   |
+|     8000    |    0.00799999    |      2.75611567e-08   |
+|    16000    |    0.02400000    |      8.25483616e-08   |
+|    32000    |    0.04800000    |     16.42889839e-08   |
+|    64000    |    0.11200000    |     37.96019006e-08   |
+|   128000    |    0.25199999    |     83.48234342e-08   |
+|   256000    |    0.56800000    |    178.77804403e-08   |
+|   512000    |    1.23199990    |    345.85339880e-08   |
+|_____________|__________________|_______________________|

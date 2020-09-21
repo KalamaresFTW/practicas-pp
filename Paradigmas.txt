@@ -1,0 +1,2412 @@
+evaluación lazy, si el primer término es true ya no se
+evalua el segundo término. (Cortocircuito de toda la vida).
+(<b1> || <b2) -> if <b1> then true else <b2>
+(<b1 && <b2>) -> if <b1> then <b2> else false
+Ojo, porque es el único caso de evaluación lazy en OCAML,
+para el resto de movidas es super quisquilloso.
+
+let f = function n -> 2 * n;;
+es equivalente a:
+let f n = 2 * n;;
+
+función valor absoluto: 
+let f x = if x>0 then x else -x;;
+
+Definición de funciones
+    let suma = function p -> fst p + snd p;;
+    o también:
+    let suma p = fst p + snd p;;
+    o también:
+    let suma (x,y) = x + y;; tipo: (int * int) -> int
+    o TAMBIÉN (a la Curry, solo para operaciones binarias?):
+    ff es una función que devuelve funciones de int -> int
+    # let ff = function n -> function x -> n + x;;
+    val ff : int -> int -> int = <fun>
+    # ff 1;;
+    - : int -> int = <fun>
+    # (ff 1) 2;;
+    - : int = 3
+
+Definiciones locales:
+    let <x> = <e1> in <e>
+    Primero se evalua <e1> y se le asocia a <x>, y esa expresión se aplica a <e>, después se "olvida"
+    Por ejemplo:
+    let suma (x,y) = 2 * x + y in suma(3,5);;
+    let pi = 2.0 *. asin 1.0 in pi * pi;;
+    no es una definición, es una expresión
+
+Acceder a los chars de un string 
+let s = “prueba”;;
+s.[2];; (*el char ‘u’*)
+
+Wildcard (comodín):
+    let p = 2,5;;
+    let a,_ = p;;
+    solo quedaría definido a.
+
+Polimorfismo paramétrico:
+    let sw (x,y) = (y,x);;
+    acepta cualquier tipo ("infinitos"), es decir:
+    a' * b' -> b' * a'
+    let first (a,b) = a;; Tipo: a' * b' -> a'
+    mejor:
+    let first (a,_) = a;; Tipo: a' * b' -> a'
+    el tema es que al no usar b es mejor tirar de comodín
+
+Listas:
+    Secuencia finita de a', deben ser del mismo tipo.
+    Se definen como cabeza::cola (h::tl)
+    lista vacia -> []
+    [1;2;3] = 1::2::3 = 1::(2::(3::[]))
+    en el caso:
+    let cab (h::_) = h;;
+    nos estamos dejando la lista vacia []
+    Funciones para trabajar sobre listas:
+
+        let cabeza (h::_) = h;;
+        let cola (_::t) = t;;
+
+        Definición de funciones recursivas:
+
+        let rec long l =
+            if l = [] then 0
+            else 1 + long (List.t l);;
+
+        o mejor:
+
+        let rec long = function
+            [] -> 0
+            | _::t -> 1 + long t;;
+
+    let long l = 
+let rec aux l n = 
+    match l with 
+         [] -> n
+        | h::t -> 1 + aux t n
+in aux l 0;;
+
+
+Recursividad terminal:
+
+    (*No recursivo terminal*)
+    let rec from1to n =
+        if n>0 then from1to (n-1) @ [n]
+        else [];;
+
+    (*Esta tampoco es recursiva terminal, pero al no utilizar @
+    la complejidad es cuadrática y no exponencial*)
+    let rec to1from = function
+        0 -> []
+        | n -> n::to1from (n-1);;
+
+    (*Podemos generalizar el caso anterior y definir una función
+    que devuelva una lista de m a n*)
+    let rec fromto m n =
+        if m > n then []
+        else m::fromto (m+1) n;;
+
+    let rec from1to n = fromto 0 n;;
+
+    (*Esta versión si es recursiva terminal, la función aux se aplica sobre pares (i,l) *)
+    let rec fromto m n =
+        let rec aux (i,l) =
+            if i < m then l
+            else aux (i-1, i::l)
+        in aux (n, []);;
+
+
+    let rec fact n =
+        if (n = 0.) then 1.0
+        else n *. fact (n-.1.);;
+    let rec fib n =
+        if (n > 1)
+            then fib (n-1) + fib (n-2)
+            else n;;
+
+Funciones de ordenación.
+
+    Ordenación por inserción.
+        insert : 'a list * 'a -> 'a list
+        insert : 'a list -> 'a -> 'a list
+
+        let rec insert x = function
+            | [] -> [x]
+            | h::t -> if (x <= h) then x::h::t
+            else h::insert x t;;
+
+        let rec isort = function
+            | [] -> []
+            | h::t -> insert h (isort t);;
+
+        (*Sólo permite ordenar de menor a mayor
+        Lo que hacemos es pasarle la función de ordenación
+        como parámetro de la función (f en este caso) *)
+        
+        let rec insert f x = function
+            | [] -> [x]
+            | h::t -> if (f h x) then x::h::t
+                        else h::insert f x t;;
+
+        let rec isort f = function
+            | [] -> []
+            | h::t -> insert f h (isort f t);;
+
+        let orden s1 s2 = String.length s1 <= String.length s2;;
+
+        (*Ahora podemos hacer cosas del estilo de:*)
+
+        isort orden ["22";"1";"333"];;
+
+        (*Y también podemos especializar una función: *)
+
+        let isort_menor_mayor l = isort (>=) l;;
+
+    Ordenación por fusión.
+        (*Primero hay que partir la lista original en dos
+        tipo: 'a list -> ('a list * 'a list)
+        *)
+
+        let rec reparte = function
+            | h1::h2::t -> let t1,t2 =
+                reparte t in (h1::t1, h2::t2)
+            | [] -> [],[]
+            | [h] -> [h],[];;
+
+        (*Ahora solo queda ordenar cada una de las sublistas
+        y después unirlas*)
+
+
+Medición del tiempo de ejecución:
+    
+(*Función que genera una lista de números aleatorios*)
+let rec rlist n = function
+    0 -> []
+    | n -> (Random.int n)::rlist n (n-1);;
+
+(*Función que toma una función y su parámetro y mide el tiempo que tarda en ejecutarse*)
+let crono f x =
+    let t = Sys.time () in
+    let _= f x in
+    Sys.time () -. t;;
+
+    (*Generamos cinco listas*)
+let l = List.map (rlist 10000) [2000;4000;8000;16000;32000];;
+
+(*Y medimos el tiempo que tarda en ordenar cada una de ellas usando isort*)
+List.map (crono (isort (>=))) l;;
+- : float list =
+[0.160000000000000031; 1.008; 2.98799999999999955; 7.024;
+ 33.6559999999999917]
+(*Dado que la complejidad del algoritmo es cuadrática, una lista de n elementos tarda x segundos, una lista de 2n elementos tarda 4x segundos en ser ordenada*)
+
+
+Definición de tipos en OCAML
+
+(*Arbol no estrictamente binario:*)
+    type ‘a btree = 
+         Empty
+        | Comp of (‘a btree * ‘a * ‘a btree);;
+
+(*Función que lista los nodos del arbol en inorden*)
+    let rec inorden = function 
+         Empty -> []
+        | Comp(d, n, i) -> inorden i @ n :: inorden d;;
+
+
+(*Función que inserta un valor en un arbol de forma que este permanece en inorden*)
+    let rec tree_insert x = function 
+         Empty -> Comp(Empty, x, Empty)
+        | Comp (i, n ,d) -> if x<=n 
+then Comp (tree_insert x i,n,d)
+else Comp (i, n, tree_insert x d);;
+
+
+(*Función que genera un árbol a partir de una lista, en inorden*)
+let rec tree_of_list = function 
+ [] -> Empty 
+| h::t -> tree_insert h (tree_of_list t);;
+
+(*Combinando las dos últimas funciones tenemos una función de ordenación, que tiene la misma eficiencia que la ordenación por fusión si la lista viene desordenada (“bien salteada”), si la lista viene ordenada tiene la eficiencia de la ordenación por inserción, es decir, lento de cojones*)
+    let tree_sort l = inorden (tree_of_list l);;
+
+(*Árboles genéricos, pueden tener un número de ramas indeterminado*)
+    type ‘a gtree = 
+        T of ‘a * ‘a gtree list;;
+    (*Ejemplos*)
+    let t = T (0, []);;
+    let rt x = T (x, []);;
+    rt 7;; (*int gtree = T (7, [])*)
+    rt ‘a’;; (*char gtree = T (‘a’, [])*)
+    rt ‘abc’;; (*string gtree = T(‘abc’, [])*)
+    let t = T (10, [rt 1; rt 3; rt 10; T(5,[rt 0])]);;
+
+    let rec suml = function 
+        [] -> 0 | h::t -> h + suml  t;; 
+
+    let rec nnodos = function 
+         T (_, l) -> 1 + suml (List.map nnodos l);;
+
+    let rec nnodos = function 
+        T (_, l) -> List.fold_left (+) 1 (List.map nnodos l);;
+    
+    let rec nnodos (T(_, l)) = List.fold_left (+) 1 (List.map nnodos l);;
+
+    (*Esta es la buena :D *)
+let rec nnodos = function
+     T (_,[]) -> 1
+    | T(r, h::t) -> nnodos h + nnodos (T(r,t));;
+
+let valor_nodo = function T(n,l) -> n;;
+
+let rec inorden = function
+T(n,[]) -> [n]
+| T(n,h::t) -> n::inorden h @ inorden t ;; (*No funciona, revisar*)
+
+    let rec anchura = function 
+         T (r, []) ->[r]
+        | T(r, T(r1, l1)::t) -> r::anchura (T(r1, t@l1));;
+
+
+    type ‘a option = None | Some of ‘a;; 
+(*Esta movida es útil para tipos de retorno en funciones en las que podemos devolver un resultado o que ese resultado no exista (por ejemplo divisiones entre 0), en vez de lanzar una
+excepción devolvemos None
+Este tipo ya viene definido por defecto en OCAML*)
+
+(*Estructuras de control de errores (mítico try/catch)*)
+let div x y = if (y=0) then None else Some(x/y);;
+let div x y = 
+    try Some (x/y)
+        with Division_by_zero -> None;;
+
+    (*Este tipo representa arboles binarios, lo de NE es por Non Empty*)
+    type ‘a ne_btree = NE of (‘a ne_btree option * ‘a * ‘a ne_btree option);;
+    let t1 = NE(None, 1 , None);;
+    let t2 = NE(Some t1, 1, None);;
+    let rec altura = function 
+        NE(None, _, None) -> 1
+        | NE(Some t1, _, Some t2) -> 1 + max (altura t1) (altura t2)
+| NE(Some t, _, None) | NE(None, _, Some t) -> 1 + altura t;;
+    
+    let rec inorden = function 
+        NE(None, n, None) -> [n]
+        | NE (Some t1, n, Some t2) -> inorden t1 @ n::inorden t2
+        | NE (Some t, n, None) -> inorden t @ [n]
+        | NE (None, n, Some t) -> [n] @ inorden t;;
+
+
+Programación imperativa.
+
+    Entrada/salida estándar 
+
+        Entrada: 
+            read_line ();; (*unit -> String*)
+        Salida 
+            print_endline “”;; (*String -> unit*)
+            let c = open_out “test”;;
+            output_char c ‘Z’;;
+            close_out c;;
+
+# output_value;;
+- : out_channel -> 'a -> unit = <fun>
+# input_value;;
+- : in_channel -> 'a = <fun>
+
+        (*Existen dos diferencias entre print_endline *)
+        
+            let rec output_string_list s = function 
+             [] -> ()
+| h::t -> let _ = output_string s h in 
+output_string_list s t;;
+(*Hace exactamente lo mismo que List.iter, solo que esta 
+funciona únicamente con strings, le falta el salto de línea*) 
+    let rec output_string_list s = function 
+       [] -> ()
+    | h::[] -> let _ = output_string s h
+    | h::t -> let _ = output_string s (h ^ ”\n”) in 
+    output_string_list s t;;
+    let s = open_out “texto”;;
+    output_string_list s [“1”;”12”;”123”;”1234”;”abcd”;”213124qsd”];;
+    close_out s;;
+
+    let e = open_in “texto”;;
+    input_line e;; (*Devuelve la primera línea del archivo texto*)
+    input_line e;; (*Cada llamada a este método devuelve la siguiente línea hasta llegar al final, que lanza una excepción End_of_file*)
+
+
+
+    let rec input_string_list e = 
+    try 
+        input_line e :: input_string_list e 
+    with
+        End_of_file -> [];;
+(*Esta versión siempre provoca un desbordamiento de la pila, habría que evaluar primero el input_line e *)
+
+
+Programación imperativa en OCAML
+
+    declaración de variables:
+    
+        let n = 0;;
+
+let turno () = let n = n + 1 in n;;
+(*Vamos, que no hay manera de hacer esto a la funcional*)
+
+# ref;;
+- : 'a -> 'a ref = <fun>
+
+# let n = ref 0;;
+val n : int ref = {contents = 0}
+# n+1;;
+Error: This expression has type int ref
+       but an expression was expected of type int
+# (!);;
+- : 'a ref -> 'a = <fun>
+        # !n;;
+- : int = 0
+# n := !n + 1;;
+- : unit = ()
+# !n;;
+- : int = 1
+
+        (*Lo del turno:*)
+        let n = ref 0;;
+
+        let turno () = 
+            n := !n + 1;
+            !n;;
+(*Ojo, que puedes modificar el valor que contiene n, y liarla parda -> variables globales*)
+
+-Loops
+while <b> do <e> done
+
+let fact n = 
+    let f = ref 1 in 
+    let i = ref 1 in 
+    while (!i <= n) do
+        f := !f * !i;
+        i := !i + 1
+    done;
+    !f;;
+        (*Hacer esto con un for, *)
+
+Programación Orientada a Objectos en OCAML
+
+class point (x_init, y_init) = 
+    object (this)
+        (*Si no hacemos estas asignaciones, el intérprete determinará
+            que la clase point es una clase abstracta, imaginaria*)
+        val mutable x = x_init
+        val mutable y = y_init
+        (*No estamos utilizando el operador (!) para acceder
+            al valor de x como si este fuese un ref*)
+        method get_x = x
+        method get_y = y
+        (*Para los setters estamos utilizando el 
+            operador (<-) para almacenar el nuevo valor de x(x')*)
+        method set_x x' = x <- x'
+        method set_y y' = y <- y'
+        method moveto (x',y') = x <- x'; y <- y'
+        (*Este es el primer método del que se puede inferir el tipado 
+            de x e y, son int, dado que estás utilizando el operador de suma
+            de enteros (+) *)
+        method movetor (dx,dy) = x <- -x + dx;  y <- -y + dy
+        (*Lo de ponerle unit es porque es un procedimiento que no 
+            toma ningún parámetro de entrada*)
+        (*El to_string tenemos que definirlo a mano, como animales*)
+        method to_string () = "(x=" ^ (string_of_int x) ^
+                              " - y=" ^ (string_of_int y) ^ ")"
+        method distance () = sqrt(float(abs(x*x-y*y)))
+        (*Método privado, solo será accesible desde métodos de la propia clase
+            y desde las posibles subclases de point*)
+        method private mprivado () = "metodo privado" 
+        method mpublico () = "Estamos llamando a un " ^ this#mprivado ()
+end;;
+
+(*Para instanciar objetos de la clase point hacemos lo siguiente: *)
+    let p1 = new point(1,2);;
+    (*val p1 : point = <obj>*)
+    let p2 = new point(1,3);;
+    (*val p2 : point = <obj>*)
+    let l = [p1,p2];;
+    (*val l : (point * point) list = [(<obj>, <obj>)]*)
+    let fid x = x;;
+    (*val fid : 'a -> 'a = <fun>*)
+    fid l;;
+    (*- : (point * point) list = [(<obj>, <obj>)]*)
+    fid p1;;
+    (*- : point = <obj>*)
+
+(*Para llamar a los métodos de la instancia del punto*)
+    p1#set_y 10;;
+    (*- : unit = ()*)
+    p1#to_string ();;
+    (*- : string = "(x=1 - y=10)"*)
+    p1#distance ();;
+    (*- : float = 9.9498743710662*)
+    p1#to_string;;
+    (*- : unit -> string = <fun>*)
+    let f = p1#to_string;;
+    (*val f : unit -> string = <fun>*)
+    let afs = [|f; (fun () -> "hola")|];;
+    (*val afs : (unit -> string) array = [|<fun>; <fun>|]*)
+    (*El método f siempre estará ligado al to_string de p1, de 
+        forma que si modificas el valor de alguno de sus atributos 
+        este cambio se verá reflejado al llamar a f () o a afs.(0) ()*)
+
+    (*Los atributos de una clase son siempre privados, se leen desde sus
+        getters y se modifican usando sus setters*)
+
+    (*Los métodos son públicos por defecto, pero podemos definir métodos
+        privados (solo accesibles desde otros métodos de la própia clase
+        y desde las subclases)*)
+
+    (*Podemos hacer movidas tochísimas, p.e:*)
+    (new point(1,3))#distance ();;
+    (*- : float = 2.82842712474619029*)
+    let fcreate x y = new point(x,y);;
+    (*val fcreate : int -> int -> point = <fun>*)
+    (fcreate 2 3)#distance ();;
+    (*- : float = 2.23606797749979*)
+
+    (*La evaluación del objeto tiene lugar durante su creación
+        Concepto de constructor:
+            - NO hay método constructor.
+            - es la própia CLASE que funciona como
+                constructora/generadora de las instancias
+                de esa clase (se comporta como una función
+                anónima que se activa sólo con new).
+            - cuando declaramos la clase point el toplevel 
+                nos dice algo así como que:
+                    int * int -> object [...] end
+                esto se puede interpretar como que la función
+                generadora "new" toma como entrada un par de 
+                enteros y como salida un objeto de tipo point
+                new point;;
+                - : int * int -> point = <fun>
+            - se puede definir "indirectamente" una clase a partir
+                de otra ya existente (esto no tiene nada que ver
+                con el concepto de herencia, point_diagonal NO
+                es una subclase de point, esto lo que hace es 
+                particularizar la clase point)*)
+                class point_diagonal x = point(x,x);;
+                let d1 = new point_diagonal 1;;
+                (*val d1 : point_diagonal = <obj>*)
+                d1#get_x;;
+                (*- : int = 1*)
+                d1#get_y;;
+                (*- : int = 1*)
+    (*Objetos inmediatos
+        podemos hacer una analogía de los objetos inmediatos
+        con el siguiente ejemplo:
+            List.map (function x -> x+1) lista
+        pero en vez de definir funciones en el momento
+        (on the fly). La sintaxis es así:*)
+            let p1d = 
+                object
+                    val mutable x = 0
+                    method get_x = x
+                    method moveto x' = x <- x'
+                end;;
+            (*val p1d : < get_x : int; moveto : int -> unit > = <obj>*)
+            p1d#get_x;;
+            (*- : int = 0*)
+            p1d#moveto (-100);;
+            (*- : unit = ()*)
+            p1d#get_x;;
+            (*- : int = -100*)
+        (*Funciones factoría, no confundir con aquéllas otras funciones
+            que también devuelven/crean objetos utilizando new*)
+            let factoria_p1d (x_init: int) = 
+                object
+                    val mutable x = x_init
+                    method get_x = x
+                    method moveto x' = x <- x'
+                end;;
+            (*    Ventajas de esta movida: 
+                - más flexibilidad
+                 Desventajas: 
+                 - legibilidad y mantenimiento se complican
+                 - no es posible aplicar herencia*)
+
+(*Clases, objetos y sus tipos
+Sistemas de tipado (Java, C++, C#):
+I.- Tipado nominal:
+    La equivalencia/compatibilidad viene dada por:
+    - Por el nombre del tipo
+        (por ejemplo en Java -> tipo = clase)
+    - Declaraciones explicitas del programador
+        (por ejemplo en Java -> las subclases son compatibles
+            con objetos de la superclase -> extends)
+
+II.- Tipado estructural (OCaml, Haskell, Smalltalk):
+    La equivalencia/compatibilidad viene dada por una única cosa:
+    la estructura del elemento, independientemente del nombre. Las 
+    clases dejan de ser tipos, las clases y los objetos tendrán sus
+    propios tipos. Las clases son constructores de objetos, pero ya
+    NO son consustanciales (Objetos inmediatos -> podemos crear 
+    objetos sin crear la clase, lo que hacemos con las funcones 
+    factoría. Entonces, los objetos y sus tipos están separados del 
+    sistema de clases. Pero para la herencia SI necesitamos las clases.)
+        Ventajas: 
+            - es mas flexible/menos restrictivo
+        Desventajas: 
+            -que tenga la misma estructura no implica
+                necesariamente que sean compatibles desde
+                    el punto devista semántico
+     
+    OCaml -> tipado estructural -> tipo del objeto = (conjunto/colección)
+    de las firmas de los métodos públicos del objeto (nombre+tipo).
+    Si un objeto tiene los mismos métodos públicos con el mismo tipo y el 
+    mismo nombre, que otro objeto para el lenguaje esos dos objetos son
+    del mismo tipo.
+    No tiene en cuenta:
+        - atributos del objeto.
+        - métodos privados del objeto.
+        - parámetros del constructor.
+    Como consecuencia puede ocurrir que:
+        - tengamos objetos con el mismo tipo pero diferentes clases.
+        - (o viceversa)tengamos objetos con tipo diferente pero de la
+             misma clase. *)
+    class point1D x_init = 
+        object 
+            val mutable x = x_init
+            method get_x = x
+            method moveto d = x <- x + d
+        end;;
+    class cotro_clase (l_init: int list) = 
+        object (this)
+            val mutable l = l_init
+            method get_x = List.hd l
+            method private imprime str = print_endline str
+            method moveto n = this#imprime (string_of_int n)
+        end;;
+    let a1 = [| new point1D 25; new cotro_clase [-2;-1;0] |];;
+    (*Podemos hacer cosas de este estilo, porque ambas clases tienen el 
+    mismo tipo, el tipo de a1 es: val a1 : point1D array = [|<obj>; <obj>|]*)
+
+    (*Definición manual/explicita del tipo de un objeto:
+        type id_object_type = <id_metodo1 : tipo1 ;... ; id_metodoN : tipoN >*)
+        type int_object = <get_x:int>;;
+        (*type int_object = < get_x : int >*)
+        let objeto_educado1 = 
+            object
+                method saludar () = print_endline "hola" 
+                method despedirse () = print_endline "adios"
+            end;;
+        (*# objeto_educado1;;
+        - : < despedirse : unit -> unit; saludar : unit -> unit > = <obj>*)
+        type formal = <saludar : unit -> unit ; despedirse : unit -> unit>;;
+        let objeto_educado2 = 
+            object
+                method saludar () = print_endline "hola" 
+                method despedirse () = print_endline "adios"
+            end;;
+        (*val objeto_educado2 
+        : < despedirse : unit -> unit; saludar : unit -> unit > = <obj> *)
+        (*No le aplica el tipo formal automáticamente, tenemos que hacerlo en
+        la declaración de la clase*)
+        let objeto_educado3 : formal = 
+            object
+                method saludar () = print_endline "hola" 
+                method despedirse () = print_endline "adios"
+            end;;
+        (*val objeto_educado3 : formal = <obj>*)
+        let (ffactoria : string -> string -> formal) saludo despedida = 
+            object
+                method saludar () = print_endline saludo
+                method despedirse () = print_endline despedida
+            end;;
+        let objeto_educado4 = factoria "hello" "godbye";;
+    (*Definición automática/implícita.
+        cuando deinimos una clase (id_clase), OCaml automáticamente define un
+        object type para designar el tipo de los objetos que crea, y lo llama 
+        id_clase *)
+
+
+(*Class Types/Interfaces*)
+class walking_point1D x_init = 
+    object (self)
+        val mutable x = x_init
+        method get_x = x
+        method private move d = x <- x + d
+        method bump () = self#move 1
+         (*Si quieres utilizar un método própio tienes que utilizar un alias
+             en este caso utilizamos "self", pero puede ser cualquier cosa.*)
+         (*Ojo con sobrecargar los métodos, que OCaml tiene un tipado fuerte 
+             y sobretodo estático *)
+    end;;
+
+let w1 = new walking_point1D 1;;
+let w2 = new walking_point1D 2;;
+w1 = w2;; (*False, son instancias distintas*)
+let w3 = w2;; 
+w2 = w3;; (*True, w2 y w3 "apuntan" a la misma instancia de walking_point1D *)
+
+(*Agregación en OCaml*)
+    class edge (p1,p2) =
+        object
+            val mutable vertex_a = p1
+            val mutable vertex_b = p2
+        end;;
+(*o también... (hay montones de posibilidades)*)
+    class edge (p1,p2) =
+        object
+            val mutable vertexes = (p1,p2)
+        end;;
+
+
+(*Herencia.
+
+    class id_subclase p1,p2,...,pn (parámetros de la subclase)
+        object
+            inherit id_superclase ps1,ps2,...,psn (parámetros de la superclase)
+                as alias (super, por ejemplo)
+
+        end;;
+
+    en OCaml la herencia puede verse como una "textual inclusion" es decir, se coge lo que hay 
+    entre object y end de la superclase y se hace un copypaste en la subclase (A GROSSO MODO).
+    la herencia permite modificar y/o añadir atributos y métodos.
+        en caso de modificar métodos estos deben conservar el tipo original
+        en los métodos la definición original sigue disponible vía el alias, pero en los atributos
+        esto no es así, la definción original se pierde para siempre!!!
+
+    En resumen, el acceso a atributos y métodos cuando usamos herencia
+        es el siguiente:
+
+                Própio objeto       Original superclase
+    
+    atributos   directamente        se pierde para siempre
+
+    métodos     alias (self)        alias (super)
+
+*)
+(*Ejemplo de herencia*)
+class colored_point2D (x2,y2) c =
+    object
+        inherit point (x2,y2) as super (*subclase de point*)
+        val mutable c = c 
+        method get_color = c
+        method set_color nc = c <- nc
+        method to_string () = (super#to_string ()) ^ " [" ^ c ^ "]"
+    end;;
+
+(*Por convención, lo mejor es no mezclar movidas a la hora de 
+    declarar clases. 
+Declarar por este orden: 
+    - Inherit
+    - Atributos
+    - Métodos
+Si pones un inherit después de declarar un método, puede que ese método
+que has declarado no valga de nada, puesto que al poner el inherit después 
+estás sustituyendo la declaración de este método por la declaración de la 
+superclase.
+
+    OCaml utiliza Delayed/Late Binding, es decir:
+        la implementación concreta a emplear para un método se
+        establece en tiempo de ejecución (cuando se crea el objeto).
+    Nota: 'self'/'this' hay que interpretarlo como "este objeto" 
+        (con la    clase que me instanció)
+        No esta clase o la clase actual.
+
+    Ejemplo:
+        Clase A: metodon () = print "metodon A"
+                 metoducho () = print "metoducho A"
+
+        (*B hereda de A*)
+
+        Clase B: metodon () = print "metodon B"
+                 metoducho () = (this#)metodon ()
+
+        (*C hereda de B*)
+
+        Clase C: metodon () = print "metodon C"
+
+        (*D hereda de C*)
+
+        Clase D: metodillo = (this#)metoducho ()
+
+        (*E hereda de C*)
+
+        Clase E: metodon () = print "metodon E"
+                 metoducho () = print "metoducho E"
+                 metodillo () = print "metodillo E"
+            
+        Y ahora hacemos un:
+        let d1 = new D;;
+        d1#metodillo;;
+        ¿Qué es lo que se imprime? "metodon C"
+        metodilloD -> metoduchoB -> metodonC
+
+ (*Herencia multiple
+
+     class id_sublase pc1,...,pcn = 
+         object 
+             inherit id_superclase1 pcs1,...,pcs2 as alias1
+             inherit id_superclase2 pcs1,...,pcs2 as alias2
+             atributos...
+             métodos...
+         end;;
+
+     Reglas:
+        1- La última (re-)definición es la que prevalece.
+        2- Herencia como "textual inclusion".
+        3- Podemos añadir/modificar -> atributos/métodos.
+        4- Delayed/Late binding.
+
+    Tres posibles casos:
+        1 - Superclases que comparten métodos/atributos.
+
+                | A |  | B | ... | X |
+                  ^      ^         ^
+                  |      |         |
+                  ------------------
+                         |
+                       | S |
+
+        A y B tienen un método con la misma firma, entonces 
+        se quedará con la definición que le indique el último
+        inherit. El resto de las implementaciones concretas de 
+        ese método para el resto de las superclases seguirán
+        disponibles con sus correspondientes alias (super1, super2, etc)
+        pero NO para sus atributos.
+
+        2 - Superclases que comparten antepasados comunes.
+
+                   | Y |
+                     ^
+                   __|___
+                  |      |
+                | A |  | B | ... | X |
+                  ^      ^         ^
+                  |      |         |
+                  ------------------
+                         |
+                       | S |
+
+            Si ni A ni B redefinen el método de Y, la definición que recibirá
+            S será la de Y.
+            Si por ejemplo A redefiniese el método de Y, la definición que recibirá
+            S será la de A.
+            Si A y B redefinen el método de Y entonces la definición que recibirá
+            A será la del último inherit.
+
+        3 - Superclases virtuales.
+                - Caso 1: "Clásica":
+
+                    | A |  | B | ... | X |
+                      ^      ^         ^
+                      |      |         |
+                      ------------------
+                             |
+                           | S |
+
+                    Siendo A y B clases virtuales. Tenemos que implementar los métodos
+                    que hemos heredado de la forma que sea.
+
+                - Caso 2: "Mixing"
+
+                    | A |  | B | ... | X |
+                      ^      ^         ^
+                      |      |         |
+                      ------------------
+                             |
+                           | S |
+
+                    Siendo A virtual, pero B no. Si S le da implementación al 
+                    método. A tiene un metodillo abstracto y un metoducho, y 
+                    viceversa con B. En ese caso S no tendría que implementar ningun
+                    método, dado que las implementaciones le vienen dadas por las superclases.
+                    Podemos pensar que las definciones se cruzan, esta es una excepción del
+                    denominado "textual inclusion".
+        *) *)
+
+
+        (*Clases virtuales (abstractas)
+            - Métodos virtuales: declarados, pero no implementados.
+                p.e: method virtual id_metodo : tipo
+            - Atributos virtuales: declarados pero no inicializados.
+                p.e: val [mutable] virtual id_atributo : tipo
+            - Por lo menos nuestra clase virtual tiene que tener un
+                atributo/método virtual.
+            - Para crear instancias de esta clase tenemos que 
+                implementar/darle valor a todos los métodos/atributos
+                de la clase abstracta.
+            - Se usa para exactamente lo mismo que las clases abstractas
+               de Java. Obligamos a quien utilize nuestra clase a implementar
+               ciertos métodos (con una firma determinada) y a darle valor 
+               a ciertos atributos *)
+            class virtual abstracta =
+                object (self)
+                    method virtual metodo_abstracto : int
+                    val mutable virtual atributo_abstracto : int
+                end;;
+            (*class virtual abstracta :
+                object
+                 val mutable virtual atributo_abstracto : int
+                 method virtual metodo_abstracto : int
+                end*)
+            (*# let v1 = new abstracta;;
+                Error: Cannot instantiate the virtual class abstracta*)
+
+        (*Clases parametrizadas:
+
+            Similar a los tipos parametrizados (string list, int array, etc...).
+            Métodos y atributos son polimorficos. Se utiliza a modo de contenedor.
+            Tenemos que declarar de manera explicita los tipos polimorficos a emplear
+            usando 'a, b', etc.
+            Deberemos indicarle también al motor de inferencia mediante ":" a quienes
+            corresponden esos tipos polimorficos.
+            En el siguiente ejemplo seria suficiente con indicar el tipo en un solo sitio
+            aparece así para ilustrar las distintas posibilidades.
+            En cuanto creamos una instancia de esta clase, el tipo queda definido durante
+            toda la ejecución del programa. Esto solo ocurre para una instancia concreta 
+            del objeto, la clase sigue siendo polimorfica (evidentemente).
+            En resumen, lo que es polimorfico, es el constructor, cuando instancias un objeto
+            defines el tipo DE ESA INSTANCIA. *)
+            class ['a, 'b] pair (a0: 'a) (b0: 'b) = 
+                object
+                    val mutable a : 'a = a0
+                    val mutable b : 'b = b0
+
+                    method fst = a
+                    method snd = b
+                    method get_par = (a,b)
+
+                    method set_fst a1 = a <- a1
+                    method set_snd b1 = b <- b1
+                end;;
+
+            (*Puedes forzar a que ambos atributos sean del mismo tipo: *)
+            class ['a] pair (a0: 'a) (b0: 'a) = 
+            object
+                val mutable a = a0
+                val mutable b = b0
+
+                method fst = a
+                method snd = b
+                method get_par = (a,b)
+
+                method set_fst a1 = a <- a1
+                method set_snd b1 = b <- b1
+            end;;
+
+            (*Herencia con clases parametrizadas.
+                1- La subclase no instancia NINGÚN tipo.
+                    Por lo tanto la subclase seguirá siendo polimorfica.*)
+                    class ['c, 'd] lpair (a0: 'c) (b0: 'd) = 
+                        object (self)
+                            inherit ['c, 'd] pair a0 b0
+                            method to_list () = [self#get_par]
+                        end;;
+
+            (*  2- La subclase instancia TODOS los tipos*)
+                    class allint_pair i0 j0 = 
+                        object (self)
+                            inherit [int, int] pair i0 j0
+                        end;;
+                        
+            (*  3 - La subclase solo insyancia PARTE de los tipos*)
+                    class ['c] fstint_pair i0 b0 = 
+                        object (self)
+                            inherit [int, 'c] pair i0 b0
+                        end;;
+
+
+
+Práctica 1
+
+--->(expresiones.ml)
+( );;
+(*unit*)
+2 + 5 * 3;;
+(*int 17*)
+1.2;;
+(*float*)
+1.0 * 2;;
+(*Error de compilación, tipos incompatibles (float * int)
+# 1.0 * 2;;
+Error: This expression has type float but an expression was
+ expected of type int
+Me imagino que se intentaba multiplicar 1.0 (float) por 2
+la expresión correcta sería: 1.0 *. 2.0 *)
+2-2.0;;
+(*Error de compilación, tipos incompatibles (int - float)
+# 2-2.0;;
+Error: This expression has type float but an expression was
+ expected of type int
+Se intenta restar 2 (int) menos 2.0 (float) lo correcto sería:
+2.0 -. 2.0 cuyo resultado es un float (0.)
+*)
+3.0 + 2.0;;
+(*Error de compilación, no se está utilizando el operador 
+adecuado para sumar floats (+.)
+# 3.0 + 2.0;;
+Error: This expression has type float but an expression was
+ expected of type int.
+Se está utilizando el operador de la suma entre valores de tipo 
+int, lo correcto sería utilizar el de float (+.)
+# 3.0 +. 2.0;;
+- : float = 5. *)
+5 / 3;;
+(*El resultado será la división de dos int expresado como un
+int, se pierde precisión ya que 5/3 es 1.66... y el compilador
+probablemente de 1
+# 5/3;;
+- : int = 1 *)
+5 mod 3;;
+(*El resto de dividir 5 entre 3 (ambos int) es 2 (int)
+# 5 mod 3;;
+- : int = 2 *)
+3.0 *. 2.0 ** 3.0;;
+(*Una operacion de tres floats, se eleva primero 2 a 3, y después
+se multiplica por 3, resultado 24(float)*)
+3.0 = float_of_int 3;;
+(*Dará true (bool)*)
+sqrt 4;
+(*Dará error de compilación, ya que la función sqrt solo acepta
+valores de tipo float, lo correcto sería sqrt 4.0;;
+# sqrt 4.0;;
+- : float = 2. *)
+int_of_float 2.1 + int_of_float (-2.9);;
+(*La suma de dos ints (obtenidos a partir de aplicar la función
+int_of_float sobre 2.1 y (-2.9) respectivamente)
+Dará 0 (int) dado que int_of_float de 2.1 es 2 y de (-2.9) es -2 *)
+truncate 2.1 + truncate (-2.9);;
+(*Se trunca 2.1, que es dos, y se trunca (-2.9) que es -2 el 
+resultado será 0 (int) *)
+floor 2.1 +. floor (-2.9);;
+(*Se redondea hacía abajo 2.1 y (-2.9) lo que dá 2 y (-3) 
+respectivamente, el resultado es -1.(float) *)
+ceil 2.1 +. ceil (-2.9);;
+(*Se redondea hacía arriba 2.1 y (-2.9) lo que dá 3 y (-2)
+respectivamente, el resultado es 1(float) *)
+'B';;
+(*El char 'B' *)
+int_of_char 'A';;
+(*Devolverá en forma de int la posición de la letra A (mayúscula) 
+en la tabla ASCII, que si no me equivoco es la 65*)
+char_of_int 66;;
+(*Devolverá el char que ocupe la posición 66 en la tabla ASCII
+que si no me equivoco es la B (mayúscula) *)
+Char.code 'B';;
+(*Devolverá la posición de 'B' mayúscula en la tabla ASCII, que 
+es la 66. int_of_char y Char.code son funciones muy similares: 
+# (Char.code);;
+- : char -> int = <fun>
+# (int_of_char);;
+- : char -> int = <fun>
+*)
+Char.chr 67;;
+(*Devuelve el char que se encuentra en la posición 67 de la tabla
+ASCII, que es la C (mayúscula) *)
+'\067';;
+(*El char con el valor 67 en la tabla ASCII, la C (mayúscula)*)
+Char.chr (Char.code 'A' + Char.code 'a' + Char.code 'Ñ');;
+(*Probablemente de error dado que la tabla ASCII solo va hasta
+el 255, y la suma de el código correspondiente a:
+'A' -> 65
+'a' -> 97
+'Ñ' -> 165 Resultado=371.
+Se sale de la tabla ASCII, por lo que Char.chr 371 dará error;
+# Char.chr (Char.code 'A' + Char.code 'a' + Char.code 'Ñ');;
+Exception: Invalid_argument "Char.chr".
+*) 
+Char.uppercase 'ñ';;
+(*Devolverá la posición de la Ñ mayúscula en forma de int*)
+Char.lowercase 'O';;
+(*Devolverá la posición de la o minúscula en forma de int*)
+"this is a string";;
+(*Esto es un string, literalmente xdddyoksetio*)
+String.length "longitud";;
+(*Devolverá en forma de int el número de caracteres que hay en
+ese string *)
+"1999" + "1";;
+(*Error, ya que ese operador de suma solo funciona con int
+Si se quería concatenar string se utiliza ^:
+# "1999" ^ "1";;
+- : string = "19991" *)
+"1999" ^ "1";;
+(*Concatena los dos string y como resultado devuelve "19991"*)
+int_of_string "1999" + 1;;
+(*Se obtiene un int a partir de un string ("1999") y se le suma 1*)
+"\064\065";;
+(*Un string formado por los caracteres 64 y 65 de la tabla ASCII,
+@ y A, respectivamente*)
+string_of_int 010;;
+(*Un string que representa el int 010, el resultado será "10"*)
+not true;;
+(*El resultado es false*)
+true && false;;
+(*El operador && se corresponde con la función lógica AND,
+true and false es false*)
+true || false;; 
+(*El operador || se corresponde con la función lógica OR,
+true or fale es true*)
+(1 < 2) = false;;
+(*1 < 2 siempre es true, y true = false es false, por lo tanto el
+resultado es false*)
+"1" < "2";;
+(*El string "1" ocupa una posición anterior al string "2", por lo
+tanto el resultado es true (bool)*)
+2 < 12;;
+(*2 siempre es menor que 12, por lo tanto el resultado es true*)
+"2" < "12";;
+(*La posición del string "2" es mayor  que la que ocupa el string
+"12", por lo tanto el resultado de esa expresión es false*)
+"uno" < "dos";;
+(*
+"uno" está compuesto de:
+    - u -> 117
+    - n -> 110
+    - o -> 111
+    total: 338
+
+"dos" está compuesto de;
+    - d -> 100
+    - o -> 111
+    - s -> 115
+    total: 326
+
+por lo que tendríamos algo como 338 < 326, lo cual da false*)
+2,5;;
+(*Una tupla de ints*)
+"hola", "adios";;
+(*Una tupla de strings*)
+0, 0.0;;
+(*Una tupla de un int y un float*)
+fst('a',0);;
+(*Se devuelve el primer elemento de una tupla formada por un char
+y un int, el resultado es el char 'a'*)
+snd (false, true);;
+(*Se devuelve el segundo elemento de una tupla formada por dos 
+booleanos, false y true, por lo tanto el resultado es true*)
+(1,2,3);;
+(*Una tupla formada por tres ints, 1, 2 y 3*)
+(1,2),3;;
+(*Una tupla cuyo primer elemento es una tupla que contiene los ints
+1 y dos, y cuyo segundo elemento es el int 3 *)
+fst (1,2),3;;
+(*Devuelve el primer elemento de esa tupla, que es una tupla que
+contiene los ints 1 y 2*)
+if 3 = 4 then 0 else 4;;
+(*Devuelve el int 4, puesto que 3!=4, por lo que se va por la 
+rama del else*)
+if 3 = 4 then "0" else "4";;
+(*Devuelve el string "4", puesto que 3!=4, por lo que se va por
+la rama del else*)
+if 3 = 4 then 0 else "4";;
+(*Dará un error, puesto que se ha de utilizar el mismo tipo de 
+datos en las dos ramas del if, y en la primera estamos 
+devolviendo int y en la segunda un string
+
+# if 3 = 4 then 0 else "4";;
+Error: This expression has type string but an expression was
+ expected of type int
+
+La solución sería poner el mismo tipo de dato en ambas ramas, o
+int en ambas o string en ambas:
+    - if 3 = 4 then "0" else "4";;
+    - if 3 = 4 then 0 else 4;;
+*)
+(if 3 < 5 then 8 else 10) + 4;;
+(*El resultado será 8 + 4 = 12*)
+let pi = 2.0 *. asin 1.0;;
+(*A partir de ahora la palabra pi contendrá el doble del 
+valor del arco cuyo seno es 1, es decir, que tendremos
+una aproximación de pi bastante buena*)
+sin (pi /. 2.);;
+(*Devolverá el seno de pi medios, es decir, 1, en formato float*)
+
+--->(expresiones2.ml)
+(*Una expresión de tipo int, que, al menos, contenga 4 operadores
+infijos*)
+(((4 + 4) * 4) / 2) - 3;; (*El resultado es 13 (int) *)
+(*Una expresión de tipo float que contenga una función 
+predefinida*)
+floor(2.8);; (*El resultado es 2.0(float) *)
+(*Una expresión de tipo char que contenga al menos una 
+subexpresión de tipo int*)
+Char.chr ((Char.code 'A') + 3);; (*El resultado es 'D' (char)*)
+(*Una expresión no trivial de tipo bool*)
+if 3 + 5 > 8 then true else false;; (*El resultado es false (bool)*)
+(*Una expresión de tipo string que contenga una estructura
+ if-then-else*)
+if 2 + 3 >= 5 then "true" else "false";;
+(*El resultado es "true" (string) *)
+(*Una expresión no trivial de tipo int * int *)
+fun n -> 2 * n;;
+(*El resultado es (int * int)*)
+
+--->(nombre.ml)
+print_endline("Pablo Costa Oubiña");;
+print_endline("p.costa@udc.es");;
+
+
+Práctica 2
+
+--->(expresiones3.ml)
+let x = 1;;
+(*A partir de ahora el 1 (int) queda asociado con el nombre x*)
+let y = 2;;
+(*A partir de ahora el 2 (int) queda asociado con el nombre y*)
+x - y;;
+(*El resultado es -1 (int) *)
+let x = y in x - y;;
+(*El resultado se obtiene de aplicar x en y, que da 2,después 
+se le resta y, por lo que el resultado final es 0 (int)*)
+x - y;;
+(*El resultado es: 1 - 2 = -1 *)
+z;;
+(*Dará un error de compilación, dado que z no está definido
+# z;;
+Error: Unbound value z
+*)
+let z = x + y;;
+(*A partir de ahora la palabra z queda asociado con el valor 
+al que está asociado x + y, que es 3 (int) *)
+z;;
+(*El resultado es 3 (int) *)
+let x = 5;;
+(*A partir de ahora el 5 (int) queda asociado con el nombre x*)
+z;;
+(*El resultado seguirá siendo 3 (int), dado que cuando se 
+hizo la definición de z, su resultado era 3 (int) *)
+let y = 5 in x + y;;
+(*Se evalua el 5, y se le asocia a y, después se le aplica x 
+(que es 5) y el resultado es 5, finalmente se le suma y, el 
+resultado final es 5 + 5 = 10 (int) *)
+x + y;;
+(*El resultado es 5 + 2 = 7 (int) *)
+let p = 2,5;;
+(*A partir de ahora la tupla 2,5 (int * int) queda asociada con
+el nombre p *)
+snd p, fst p;;
+(*El resultado es la tupla 5,2 (int * int) *)
+p;;
+(*La tupla 2,5 (int * int) *)
+let p = 0,1 in snd p, fst p;;
+(*El resultado será la tupla 1,0 (int * int) *)
+p;;
+(*La tupla 2,5 (int * int) *)
+let x,y = p;;
+(*Ahora x quedará asociado con 2 (int) e y con 5 (int)*)
+let z = x + y;;
+(*A partir de ahora el resultado de la suma de x + y 
+(que es 7 (int)) quedará asociada con el nombre z*)
+let x,y = p, x;;
+(*El nombre x quedará asociado con la p (que es el nombre que 
+le hemos dado a la tupla 2,5 (int * int)) y el nombre 
+y quedará asociado con el valor con el que estaba 
+asociado x (2 (int)) *)
+let x = let x,y = 2,3 in x * x + y;;
+(*A partir de ahora x será asociado con 7 (int) *)
+x + y;;
+(*El resultado de la suma de x + y: 7 + 2 = 9 (int) *)
+z;;
+(*El resultado es el valor con el que quedó asociado z, 7 (int)*)
+let x = x + y in let y = x * y in x + y + z;;
+(*El resultado es 34 (int) *)
+x + y + z;;
+(*El resultado es 16 (int)*)
+int_of_float;;
+(*float -> int*)
+float_of_int;;
+(*int -> float*)
+int_of_char;;
+(*char -> int*)
+char_of_int;;
+(*char -> int*)
+char_of_int;;
+(*int -> char*)
+abs;;
+(*int -> int*)
+sqrt;;
+(*float -> float*)
+truncate
+(*float -> int*)
+ceil;;
+(*float -> float*)
+floor;;
+(*float -> float*)
+Char.code;;
+(*char -> int*)
+String.lenght;;
+(*string -> int*)
+fst;;
+(*'a * 'b -> 'a*)
+snd;;
+(*'a * 'b -> 'b'*)
+function x -> 2 * x;;
+(*int -> int*)
+(function x -> 2 * x) (2 + 1);;
+(* 6 (int) *)
+function (x,y) -> x;;
+(* 'a * 'b -> 'a *)
+let f = function x -> 2 * x;;
+(* Se define como f una en la que dado un x el 
+resultado es 2 * x*)
+f (2 + 1);;
+(*6 (int) *)
+f 2 + 1;;
+(*5 (int) *)
+let n = 10;;
+(*Se define n = 10 (int)*)
+let sum n = function x -> n + x;;
+(*Se define una función sum de tipo: int -> int -> int*)
+sum 5;;
+(*Una función que devuelve una función que suma 5, int -> int *)
+sum 1 2;;
+(*3 (int) *)
+let n = 1;;
+(*se define n = 10 (int)*)
+sum n 10;;
+(*11 int*)
+let sumn = sum n;;
+(*Se define sumn como una función int -> int*)
+sumn 100;;
+(*101 (int)*)
+let n = 1000;;
+(*Se define n como 1000 (int)*)
+sumn 100;;
+(*101 (int)*)
+
+--->(letters.ml)
+(*Ejercicio 2: hacer nuestras propias versiones del:
+    -Char.uppercase
+    -Char.lowercase
+Tener en cuenta que este ejercicio ha sido realizado 
+teniendo en cuenta que la codificación de caracteres utilizada
+es la: ISO8859-1, también funcionaría con la ISO8859-15*)
+
+(*Nombre de la función: lowercase
+Tipo: char -> char*
+Uso: Toma un carácter c y devuelve, si lo hay, su minúscula, 
+si no tiene minúscula devuelve c*)
+
+let lowercase c =
+    if (c >= '\065' && c <='\090') (*Carácteres de la A a la Z*)
+    || (c >= '\192' && c <='\214')
+    || (c >= '\216' && c <='\222')
+    then Char.chr( (Char.code c) + 32)
+    else  c;;
+
+
+(*Nombre de la función: uppercase
+Tipo: char -> char*
+Uso: Toma un carácter c y devuelve, si lo hay, su mayúscula,
+si no tiene mayúscyla devuelve c*)
+
+let uppercase c =
+    if (c >= '\097' && c <='\122') (*Carácteres de la a a la z*)
+    || (c >= '\224' && c <='\246')
+    || (c >= '\248' && c <='\254') 
+    then Char.chr( (Char.code c) - 32)
+    else  c;;
+
+let rec compare f1 f2 c =
+  if c = 0 then f1 (Char.chr c) = f2 (Char.chr c)
+  else f1 (Char.chr c) = f2 (Char.chr c) && compare f1 f2 (c-1);;
+
+(* Podemos comprobar que las funciones del modulo Char y las que hemos
+definido ahora son tienen la misma imagen acotadas en el rango (0,254)
+
+# compare Char.uppercase uppercase 254;;
+- : bool = true
+
+# compare Char.lowercase lowercase 254;;
+- : bool = true 
+*)
+
+
+Práctica 3
+
+--->(mylist.ml)
+let hd = function
+     [] -> raise (Failure "hd")
+    | h::_ -> h;;
+
+let tl = function 
+     [] -> raise (Failure "tl")
+    | _::t -> t;;
+
+let rec length = function
+     [] -> 0
+    | _::t -> 1 + length t;;
+
+let rec nth l = function 
+     0 -> if (l == []) 
+            then raise (Failure "nth") 
+            else (hd l)
+    | n -> if (n < 0) 
+            then raise (Invalid_argument "nth") 
+            else nth (tl l) (n-1);;
+
+let rec append l1 l2 = 
+    match l1 with
+     [] -> l2
+    | h::t -> h::(append t l2);;
+
+let rec rev = function
+     [] -> []
+    | h::t -> append (rev t) [h];;
+
+let rev_append l1 l2 = append (rev l1) l2;;
+
+let rec concat = function 
+     [] -> []
+    | h::t -> append h (concat t);;
+
+let flatten = concat;;
+
+let rec map f = function
+     [] -> []
+    | h::t -> (f h)::(map f t);;
+
+let rec map2 f l1 l2 = 
+    match l1,l2 with
+       [], [] -> []
+      | h1::t1, h2::t2 -> (f h1 h2)::(map2 f t1 t2)
+      | _ -> raise (Invalid_argument "map2");;
+
+let rec fold_left f n l = 
+    match l with
+       [] -> n 
+      | h::t -> fold_left f (f n h) t;;
+
+let rec fold_right f l a =
+  match l with
+    [] -> a
+| h::t -> f h (fold_right f t a);;
+
+let rec find f l = 
+    match l with
+     [] -> raise (Not_found)
+    | h::t -> if (f h) 
+                then h 
+                else find f t;;
+
+let rec for_all f l = 
+    match l with
+     [] -> true
+    | h::t -> (f h) && (for_all f t);;
+
+let rec exists f l =
+    match l with
+     [] -> false
+    | h::t -> (f h) || (exists f t);;
+
+let rec mem n l = 
+    match l with
+     [] -> false
+    | h::t -> (h==n) || (mem n t);;
+
+let rec filter f l =
+    match l with
+     [] -> []
+    | h::t -> if (f h) 
+                    then h::(filter f t)
+                    else (filter f t);;
+
+let rec find_all = filter;;
+
+let partition f l = 
+    let rec part (l1,l2) = function
+         [] -> rev l1, rev l2
+        | h::t -> if (f h) 
+                    then part ((h::l1), l2) t 
+                    else part (l1, (h::l2)) t
+        in part ([],[]) l;;
+
+let split l = 
+    let rec aux (l1,l2) = function
+         [] -> (rev l1, rev l2)
+        | (a1,a2)::t -> (aux (a1::l1,a2::l2) t)
+    in aux ([],[]) l;;
+
+let rec combine l1 l2 = 
+    match (l1,l2) with
+     ([],[]) -> []
+    | (h1::t1), (h2::t2) -> (append [(h1,h2)] (combine t1 t2))
+    | (_,_) -> raise (Invalid_argument "combine");;
+
+ let rec remove e = function
+     [] -> []
+    | h::t -> if (e == h) 
+                then t
+                else h::remove e t;;
+
+let rec remove_all e = function
+     [] -> []
+    | h::t -> if (e == h) 
+                then remove_all e t
+                else h::remove_all e t;;
+
+ let rec ldif l1 l2 = 
+    match (l1, l2) with
+      ([], []) -> []
+    | (l1, []) -> l1
+    | (l1, h::t) -> ldif (remove_all h l1) t;;
+
+let rec lprod l1 l2 =
+    match l1 with
+     [] -> [] 
+    | h::t -> append (map (function x -> (h,x)) l2) (lprod t l2);;
+
+
+let rec divide = function 
+     h1::h2::t -> let t1,t2 = 
+                divide t in (h1::t1, h2::t2)
+    | [] -> [],[]
+    | [h] -> [h],[];;
+
+
+Práctica 4
+
+--->(mylist2.ml)
+let hd = function
+     [] -> raise (Failure "hd")
+    | h::_ -> h;;
+
+let tl = function 
+     [] -> raise (Failure "tl")
+    | _::t -> t;;
+
+(*let rec length = function
+     [] -> 0
+    | _::t -> 1 + length t;;*)
+let length l = 
+    let rec aux n = function 
+         [] -> n
+        | _::t -> aux (n+1) t
+    in aux 0 l;;
+
+(*let rec nth l = function 
+     0 -> if (l == []) 
+            then raise (Failure "nth") 
+            else (hd l)
+    | n -> if (n < 0) 
+            then raise (Invalid_argument "nth") 
+            else nth (tl l) (n-1);;*)
+let nth l n = 
+    if n>=0 then
+        let rec aux l n = 
+            match l with
+             [] -> raise(Failure "nth")
+            | h::t -> if n=0 
+                        then h 
+                        else aux t (n-1)
+        in aux l n
+    else 
+        raise (Invalid_argument "nth");;
+
+let rec append l1 l2 = 
+    match l1 with
+     [] -> l2
+    | h::t -> h::(append t l2);;
+
+(*let rec rev = function
+     [] -> []
+    | h::t -> append (rev t) [h];;*)
+let rev l = 
+    let rec aux a = function 
+        [] -> a
+        | h::t -> aux (h::a) t
+    in aux [] l;;
+
+(*let rev_append l1 l2 = append (rev l1) l2;;*)
+let rev_append l1 l2 = 
+    let rec aux a b =
+        match a with
+         [] -> b
+        | h::t -> aux t (h::b)
+    in aux l1 l2;;
+
+let rec concat = function 
+     [] -> []
+    | h::t -> append h (concat t);;
+
+let flatten = concat;;
+
+let rec map f = function
+     [] -> []
+    | h::t -> (f h)::(map f t);;
+
+let rec map2 f l1 l2 = 
+    match l1,l2 with
+       [], [] -> []
+      | h1::t1, h2::t2 -> (f h1 h2)::(map2 f t1 t2)
+      | _ -> raise (Invalid_argument "map2");;
+
+let rec fold_left f n l = 
+    match l with
+       [] -> n 
+      | h::t -> fold_left f (f n h) t;;
+
+let rec fold_right f l a =
+  match l with
+    [] -> a
+| h::t -> f h (fold_right f t a);;
+
+let rec find f l = 
+    match l with
+     [] -> raise (Not_found)
+    | h::t -> if (f h) 
+                then h 
+                else find f t;;
+
+let rec for_all f l = 
+    match l with
+     [] -> true
+    | h::t -> (f h) && (for_all f t);;
+
+let rec exists f l =
+    match l with
+     [] -> false
+    | h::t -> (f h) || (exists f t);;
+
+let rec mem n l = 
+    match l with
+     [] -> false
+    | h::t -> (h==n) || (mem n t);;
+
+(*let rec filter f l =
+    match l with
+     [] -> []
+    | h::t -> if (f h) 
+                    then h::(filter f t)
+                    else (filter f t);;*)
+let filter f l =
+    let rec aux n = function
+          [] -> rev n 
+         | h::t -> if (f h)
+                     then aux (h::n) t
+                     else aux n t
+    in aux [] l;;
+
+let rec find_all = filter;;
+
+let partition f l = 
+    let rec part (l1,l2) = function
+         [] -> rev l1, rev l2
+        | h::t -> if (f h) 
+                    then part ((h::l1), l2) t 
+                    else part (l1, (h::l2)) t
+        in part ([],[]) l;;
+
+let split l = 
+    let rec aux (l1,l2) = function
+         [] -> (rev l1, rev l2)
+        | (a1,a2)::t -> (aux (a1::l1,a2::l2) t)
+    in aux ([],[]) l;;
+
+let rec combine l1 l2 = 
+    match (l1,l2) with
+     ([],[]) -> []
+    | (h1::t1), (h2::t2) -> (append [(h1,h2)] (combine t1 t2))
+    | (_,_) -> raise (Invalid_argument "combine");;
+
+(*let rec remove e = function
+     [] -> []
+    | h::t -> if (e == h) 
+                then t
+                else h::remove e t;;*)
+let remove e l =
+    let rec aux n = function 
+         [] -> rev n
+        | h::t -> if (h<>e) 
+                    then aux (h::n) t
+                    else rev_append n t
+    in aux [] l;; 
+
+let rec remove_all e = function
+     [] -> []
+    | h::t -> if (e == h) 
+                then remove_all e t
+                else h::remove_all e t;;
+
+ let rec ldif l1 l2 = 
+    match (l1, l2) with
+      ([], []) -> []
+    | (l1, []) -> l1
+    | (l1, h::t) -> ldif (remove_all h l1) t;;
+
+let rec lprod l1 l2 =
+    match l1 with
+     [] -> [] 
+    | h::t -> append (map (function x -> (h,x)) l2) (lprod t l2);;
+
+(*let rec divide = function 
+     h1::h2::t -> let t1,t2 = 
+                divide t in (h1::t1, h2::t2)
+    | [] -> [],[]
+    | [h] -> [h],[];;*)
+let divide l =
+    let rec aux a (l1,l2) = match a with
+             [] -> (rev l1), (rev l2) (*Este caso se dará al final de las listas de longitud par*)
+            | h1::h2::t -> aux t (h1::l1, h2::l2)
+            | h::[] -> rev (h::l1), rev l2 (*Este caso se dará al final de las de longitud impar*)
+    in aux l ([],[]);;
+
+
+Práctica 5 
+
+--->(mylist3.ml)
+(*let rec suml = function 
+    [] ­> 0
+  | h::t ­> h + suml t;;*)
+let suml l = 
+    let rec aux l a =
+        match l with 
+         [] -> a
+        | h::t -> aux t (a+h)
+    in aux l 0;;
+
+(*let rec maxl = function 
+    [] ­> raise (Failure "maxl")
+  | h::[] -­> h
+  | h::t -> max h (maxl t);;*)
+let maxl l = 
+    let rec aux l n = 
+        match l with
+         [] -> raise (Failure "max")
+        | h::[] -> max h n
+        | h::t -> aux t (max h n)
+    in aux l 0;;
+
+(*let rec to0from n = 
+    if n<0 then []
+    else n :: to0from (n­1);;*)
+let to0from n =
+    let rec aux l = function
+             0 -> List.rev (0::l)
+            | n -> aux (n::l) (n-1)
+    in aux [] n;;
+
+(*let rec fromto m n =
+    if m > n then []
+    else m :: fromto (m+1) n;;*)
+let rec fromto m n =
+        let rec aux (i,l) =
+            if i < m 
+                then l
+                else aux (i-1, i::l)
+        in aux (n, []);;
+
+(*let rec from1to n =
+    if n < 1 then []
+    else from1to (n­1) @ [n];;*)
+let from1to n = fromto 1 n;;
+
+(*let append = List.append;;*)
+let append l1 l2 =
+    let rec aux la l1 l2 = 
+        match l1 with
+             [] -> List.rev_append la l2
+            | h::t -> aux (h::la) t l2
+    in aux [] l1 l2;;
+
+(*let concat = List.concat;;*)
+let concat l1 = 
+    let rec aux l1 la =
+        match l1 with
+             [] -> la 
+            | h::t -> aux t (append la h)
+    in aux l1 [];;
+
+(*let map = List.map;;*)
+let map f l = 
+    let rec aux f l la =
+        match l with 
+             [] -> List.rev la
+            | h::t -> aux f t (f(h)::la)
+    in aux f l [];;
+
+(*let power x y = 
+    let rec innerpower x y =
+        if y = 0 then 1 
+        else x * innerpower x (y­1)
+    in 
+    if y >= 0 then innerpower x y
+    else invalid_arg "power";;*)
+let power x y = 
+    if y<0
+        then invalid_arg "power"
+        else
+            let rec aux x y z = 
+                match y with
+                     0 -> z
+                    | y -> aux x (y-1) (x*z)
+            in aux x y 1;;
+
+(*let fib n =
+    let rec innerfib n =
+        if n < 2 then n
+        else innerfib (n­1) + innerfib (n­2)
+    in
+    if n >= 0 then innerfib n
+    else invalid_arg "fib";;*)
+let fib n = 
+    if (n < 0)
+        then invalid_arg "fib"
+        else 
+            let rec aux x y = function 
+                 0 -> x
+                | n -> aux y (x+y) (n-1)
+            in aux 0 1 n;;
+
+(*let fact n =
+    let rec innerfact n =
+        if n = 0 then 1.
+        else float n *. innerfact (n)
+    in 
+    if n >= 0 then innerfact n
+    else invalid_arg "fact";;*)
+let fact n = 
+    if n<0 
+        then invalid_arg "fact"
+        else
+            let rec aux a = function
+                  0 -> a 
+                 | n -> aux(float n *. a) (n-1)
+            in aux 1. n;;
+
+(*let incseg l = List.fold_right (fun x t -> x::List.map ((+) x) t) l [];;*)
+let incseg l = 
+    let rec aux l1 l2 a = 
+        match l1 with 
+             [] -> List.rev l2
+            | h::t -> aux t ((h+a)::l2) (h+a) 
+    in aux l [] 0;;
+
+(*let rec multicomp l x = match l with
+    [] -> x
+  | f::t -> f (multicomp t x);;*)
+let multicomp l x = 
+    let rec aux l x =
+        match l with
+             [] -> x
+            | h::t -> aux t (h x)
+    in aux (List.rev l) x;;
+
+(*let rec insert x = function 
+        [] ­> [x]
+      | h::t -> if x <= h then x::h::t
+                else h :: insert x t;;*)
+let insert x l = 
+    let rec aux x l la = 
+        match l with 
+             [] -> List.rev_append la (x::l)
+            | h::t -> if (x <= h)
+                        then List.rev_append la (x::l)
+                        else aux x t (h::la)
+    in aux x l [];;
+
+(*let rec insert_gen f x l = match l with
+        [] -> [x]
+      | h::t -­> if f x h then x::l
+                else h :: insert_gen f x t;;*)
+let insert_gen f x l = 
+    let rec aux f x l la = 
+        match l with 
+             [] -> List.rev_append la (x::l)
+            | h::t -> if f x h 
+                        then List.rev_append la (x::l)
+                        else aux f x t (h::la)
+    in aux f x l [];;
+
+
+Práctica 6
+
+--->(fib.ml)
+(*Compilar con:
+    ocamlc -o fib nums.cma fib.ml
+    donde:
+        -o: indica el nombre del ejecutable a generar
+        fib: el nombre del ejecutable
+        nums.cma: biblioteca para trabajar con números 
+                    absurdamente grandes, tenemos que linkearla
+                    desde aquí. Para hacerlo desde el intérprete 
+                    escribimos: #load "nums.cma"
+        fib.ml: el nombre del fichero con el fuente*)
+open Num;;
+let arg = num_of_string Sys.argv.(1);;
+
+let zero = num_of_int 0;;
+let uno = num_of_int 1;;
+
+(*Versión original del algoritmo
+let rec fib n =
+    if n > 1 
+        then fib (n­1) + fib (n­2) 
+        else n;;*)
+
+
+(*Versión recursiva terminal de la función anterior
+let fib n = 
+    if (n < 0)
+        then invalid_arg "fib"
+        else 
+        let rec aux x y = function 
+            | 0 -> x
+            | n -> aux y (x+y) (n-1)
+        in aux 0 1 n;;*)
+
+(*Esta es la versión recursiva terminal que trabaja con Num.
+  En este caso utilizo una definición local para obtener 
+  directamente el término proporcionado por paŕámetro.*)
+let fibn =
+    let fib n = 
+        if (n < zero)
+            then invalid_arg "fib"
+            else 
+            let rec aux x y n = 
+                if n = zero 
+                    then x
+                    else aux y (x+/y) (n-/uno)
+            in aux zero uno n
+in fib arg;;
+
+(*Versión utilizando matrices, no es recursiva terminal
+let fib n = 
+   let rec fibonacci n = 
+     match n with 
+     | 0 -> (0, 0)
+     | 1 -> (0, 1) 
+     | m -> let (a, b) = fibonacci (m-1) in (b, a+b) 
+                 in let (_, k) = fibonacci n 
+                     in k;;*)
+
+print_endline (string_of_num fibn);;
+
+
+Práctica 7
+
+--->(msort.ml)
+(*1)  Implemente (con el mismo tipo) una versión r_list_t
+recursiva terminal.*)
+let r_list_t r n = 
+ if r>0 && n>=0 then
+  let rec aux r n l = 
+   if n<1 
+    then l
+    else aux r (n-1) ((Random.int r)::l)
+  in aux r n []
+ else raise (Invalid_argument "rlist");;
+
+(*La función divide sirve para repartir equitativamente,
+en dos, los elementos de una lista.*)
+let rec divide = function 
+  | h1::h2::t -> let t1,t2 = divide t in (h1::t1, h2::t2)
+  | l -> l,[];;
+
+(*La función merge sirve para reunir, respetando una relación 
+de orden dada, en una lista, los elementos de dos listas, 
+si estas están ordenadas según esa misma relación de orden.*)
+let rec merge ord (l1,l2) = 
+  match l1,l2 with
+  | [],l | l,[] -> l
+  | h1::t1,h2::t2 -> if ord h1 h2 
+                     then h1::merge ord (t1,l2)
+                     else h2::merge ord (l1,t2);;
+
+(*2) Defina, utilizando las funciones divide y merge, 
+una función m_sort: ('a -> 'a -> bool) -> 'a list -> 'a list
+que implemente el método de ordenación por fusión*)
+let rec m_sort ord = function
+  | [] -> []
+  | [h] -> [h]
+  | list -> let l1, l2 = divide list in
+              merge ord ((m_sort ord l1),(m_sort ord l2));;
+
+(*3. Defina de modo recursivo terminal funciones divide_t y merge_t 
+(con el mismo tipo que divide y merge, respectivamente) que sirvan 
+para el mismo objetivo.*)
+let divide_t l =
+ let rec aux a (l1,l2) =
+  match a with
+  | [] -> (List.rev l1), (List.rev l2)
+  | h1::h2::t -> aux t (h1::l1, h2::l2)
+  | h::[] -> List.rev (h::l1), List.rev l2
+ in aux l ([],[]);;
+
+let merge_t ord (l1,l2) =
+  let rec aux ord a = function
+    | [], [] -> List.rev a
+    | [], h :: t -> aux ord (h :: a) ([],t)
+    | h :: t, [] -> aux ord (h :: a) (t,[])
+    | h1 :: t1, h2 :: t2 -> if ord h1 h2
+                        then aux ord (h1 :: h2 :: a) (t1,t2)
+                        else aux ord (h2 :: h1 :: a) (t2,t1)
+  in aux ord [] (l1,l2);;
+
+(*4. Realice una nueva implementación del método de ordenación por 
+fusión, m_sort2: ('a -> 'a -> bool) -> 'a list -> 'a list, utilizando 
+ahora las funciones divide_t y merge_t*)
+let rec m_sort2 ord l = 
+  match l with
+  | [] -> []
+  | [h] -> [h]
+  | list -> let l1, l2 = divide_t list 
+        in merge_t ord ((m_sort2 ord l1),(m_sort2 ord l2));;
+
+--->(msort.txt)
+(*La complejidad computacional teórica del algoritmo de ordenación
+ por fusión es de O(n log n), y podemos ver a continuación como
+ esto coincide a grandes rasgos con nuestras implementaciones de 
+ la ordenación por fusión.
+ No es necesario que msort2 sea recursiva terminal, dado que las 
+ funciones que utiliza (merge_t,divide_t) si lo son, y no van dejando
+ operaciones pendientes, por lo que no produce stack overflow.
+
+let time f x = 
+ let t = Sys.time () in
+  let _ = f x in
+   let tn = (Sys.time () -. t) in
+   (tn, tn /. (t ** log t));;
+
+let msort_time = 
+ let n = [2000;4000;8000;16000;32000;64000] in
+        let random_list = (r_list_t 300000) in
+          let m_sort' = (m_sort (<)) in 
+            List.map (time m_sort') (List.map random_list  n);;
+ _____________ __________________ ______________________
+|             |                  |                      |
+|      n      |      m_sort      |   t(n)/O(n log n)    |
+|_____________|__________________|______________________|
+|             |                  |                      |
+|     2000    |    0.00399999    |     2.41531889e-08   |
+|     4000    |    0.00400000    |     2.41322848e-08   |
+|     8000    |    0.00799999    |     4.82228012e-08   |
+|    16000    |    0.01600000    |     9.62787680e-08   |
+|    32000    |    0.03999999    |    23.98651317e-08   |
+|    64000    |    0.10399999    |    61.82786830e-08   |
+|_____________|__________________|______________________|
+m_sort produce Stack overflow para listas de mas de 64000 elementos
+
+
+let msort2_time = 
+ let n = [2000;4000;8000;16000;32000;64000;128000;256000;512000] in
+     let random_list = (r_list_t 300000) in
+       let m_sort' = (m_sort2 (<=)) in
+         List.map (time m_sort') (List.map random_list n);;
+ _____________ __________________ _______________________
+|             |                  |                       |
+|      n      |      m_sort2     |    t(n)/O(n log n)    |
+|_____________|__________________|_______________________|
+|             |                  |                       |
+|     1000    |    0.00399999    |      1.38031371e-08   |
+|     4000    |    0.00400000    |      1.37918526e-08   |
+|     8000    |    0.00799999    |      2.75611567e-08   |
+|    16000    |    0.02400000    |      8.25483616e-08   |
+|    32000    |    0.04800000    |     16.42889839e-08   |
+|    64000    |    0.11200000    |     37.96019006e-08   |
+|   128000    |    0.25199999    |     83.48234342e-08   |
+|   256000    |    0.56800000    |    178.77804403e-08   |
+|   512000    |    1.23199990    |    345.85339880e-08   |
+|_____________|__________________|_______________________|
+
+
+Práctica 8
+
+--->(exp.ml)
+type ari_exp = 
+    | Const of int
+    | Sum of ari_exp * ari_exp
+    | Pro of ari_exp * ari_exp
+    | Dif of ari_exp * ari_exp
+    | Quo of ari_exp * ari_exp
+    | Mod of ari_exp * ari_exp;;
+
+(*La expresión 2 * 3 + 1 tendría la forma: 
+ let e1 = Sum(Pro(Const 2, Const 3), Const 1)*)
+
+let rec eval = function
+    | Const n -> n
+    | Sum(e1,e2) -> eval e1 + eval e2
+    | Pro(e1,e2) -> eval e1 * eval e2
+    | Dif(e1,e2) -> eval e1 - eval e2
+    | Quo(e1,e2) -> eval e1 / eval e2
+    | Mod(e1,e2) -> (eval e1) mod (eval e2);;
+(*val eval : ari_exp -> int = <fun>*)
+
+(*# eval (Sum(Pro(Const 2, Const 3), Const 1));;
+- : int = 7*)
+
+type biOper = Sm | Pr | Df | Qt | Md;;
+type exp = C of int | Op of biOper * exp * exp;;
+
+(*# Op(Sm, Op(Pr, C 2, C 3), C 1);;
+- : exp = Op (Sm, Op (Pr, C 2, C 3), C 1)*)
+
+(*(a.) Defina las funciones:
+ exp_of_ari_exp : ari_exp -> exp 
+ ari_exp_of_exp: exp -> ari_exp *)
+
+let rec exp_of_ari_exp = function
+    | Const n -> C n
+    | Sum(e1,e2) -> Op(Sm, exp_of_ari_exp e1, exp_of_ari_exp e2)
+    | Pro(e1,e2) -> Op(Pr, exp_of_ari_exp e1, exp_of_ari_exp e2)
+    | Dif(e1,e2) -> Op(Df, exp_of_ari_exp e1, exp_of_ari_exp e2)
+    | Quo(e1,e2) -> Op(Qt, exp_of_ari_exp e1, exp_of_ari_exp e2)
+    | Mod(e1,e2) -> Op(Md, exp_of_ari_exp e1, exp_of_ari_exp e2);;
+  (*val exp_of_ari_exp : ari_exp -> exp = <fun>*)
+  (*# exp_of_ari_exp (Sum(Pro(Const 2, Const 3), Const 1));;
+  - : exp = Op (Sm, Op (Pr, C 2, C 3), C 1)*)
+
+let rec ari_exp_of_exp = function
+    | C n -> Const n
+    | Op(Sm,e1,e2) -> Sum(ari_exp_of_exp e1, ari_exp_of_exp e2)
+    | Op(Pr,e1,e2) -> Pro(ari_exp_of_exp e1, ari_exp_of_exp e2)
+    | Op(Df,e1,e2) -> Dif(ari_exp_of_exp e1, ari_exp_of_exp e2)
+    | Op(Qt,e1,e2) -> Quo(ari_exp_of_exp e1, ari_exp_of_exp e2)
+    | Op(Md,e1,e2) -> Mod(ari_exp_of_exp e1, ari_exp_of_exp e2);;
+  (*val ari_exp_of_exp : exp -> ari_exp = <fun>*)
+  (*# ari_exp_of_exp (Op (Sm, Op (Pr, C 2, C 3), C 1));;
+  - : ari_exp = Sum (Pro (Const 2, Const 3), Const 1)*)
+
+(*(b.) Implemente, utilizando la función opval, una función 
+eval : exp -> int que calcule el valor de cada expresión 
+aritmética en el nuevo tipo*)
+
+let opVal = function
+    | Sm -> (+)
+    | Pr -> ( * )
+    | Df -> (-)
+    | Qt -> (/)
+    | Md -> (mod);;
+ (*(*val opVal : biOper -> int -> int -> int = <fun>*)*)
+
+let rec eval = function
+    | C n -> n
+    | Op(oper,e1,e2) -> opVal(oper) (eval e1) (eval e2);;
+  (*val eval : exp -> int = <fun>*)
+  (*# eval (Op (Sm, Op (Pr, C 2, C 3), C 1));;
+  - : int = 7*)
+
+(*(c.) Implemente, para el nuevo tipo, funciones equivalente a
+ las siguientes, que había definido para el tipo antiguo el 
+ primer equipo:*)
+
+  (*let conmut = function 
+    Const n -> Const n
+  | Sum (e1,e2) -> Sum (e2,e1)
+  | Pro (e1,e2) -> Pro (e2,e1)
+  | Dif (e1,e2) -> Dif (e2,e1)
+  | Quo (e1,e2) -> Quo (e2,e1)
+  | Mod (e1,e2) -> Mod (e2,e1);;*)
+let conmut = function
+    | C n -> C n
+    | Op(oper,e1,e2) -> Op(oper,e2,e1);;
+
+  (*let rec mirror = function 
+    Const n -> Const n
+  | Sum (e1,e2) -> Sum (mirror e2, mirror e1)
+  | Pro (e1,e2) -> Pro (mirror e2, mirror e1)
+  | Dif (e1,e2) -> Dif (mirror e2, mirror e1)
+  | Quo (e1,e2) -> Quo (mirror e2, mirror e1)
+  | Mod (e1,e2) -> Mod (mirror e2, mirror e1);;*)
+let rec mirror = function
+    | C n -> C n
+    | Op(oper,e1,e2) -> Op(oper, (mirror e2), (mirror e1));;
+
+(*let rec shift_left = function 
+| Sum (x, Sum (y,z)) -> shift_left (Sum (Sum (x,y), z))
+| Pro (x, Pro (y,z)) -> shift_left (Pro (Pro (x,y), z))
+| Sum (e1,e2) -> Sum (shift_left e1, shift_left e2)
+| Pro (e1,e2) -> Pro (shift_left e1, shift_left e2)
+| Dif (e1,e2) -> Dif (shift_left e1, shift_left e2)
+| Quo (e1,e2) -> Quo (shift_left e1, shift_left e2)
+| Mod (e1,e2) -> Mod (shift_left e1, shift_left e2)
+| e -> e;;
+val shift_left : ari_exp -> ari_exp = <fun>*)
+let rec shift_left = function
+ | Op (oper1, C x, Op (oper2, C y, C z)) -> 
+     Op (oper1, Op (oper2, C x, C y), C z)
+ | Op(oper, e1, e2) -> 
+     Op(oper, shift_left e1,  shift_left e2)
+ | e -> e;;
+
+(* Función que devuelve el string correspondiente 
+a cada uno de los distintos tipos de operación del 
+del tipo biOper.
+- : biOper -> string = <fun>*)
+let str_of_biOper = function
+ | Sm -> "+" 
+ | Pr -> "*"
+ | Df -> "-"
+ | Qt -> "/"
+ | Md -> "%";;
+
+(*let rec str_of_exp = function 
+  Const n -> string_of_int n
+| Sum (x,y) -> "(" ^ str_of_exp x ^ " + " ^ str_of_exp y ^ ")"
+| Pro (x,y) -> "(" ^ str_of_exp x ^ " * " ^ str_of_exp y ^ ")"
+| Dif (x,y) -> "(" ^ str_of_exp x ^ " ­ " ^ str_of_exp y ^ ")"
+| Quo (x,y) -> "(" ^ str_of_exp x ^ " / " ^ str_of_exp y ^ ")"
+| Mod (x,y) -> "(" ^ str_of_exp x ^ " % " ^ str_of_exp y ^ ")";;*)
+(*# str_of_exp (Sum(Pro(Const 2, Const 3), Const 1));;
+- : string = "((2 * 3) + 1)"*)
+let rec str_of_exp = function
+ | C n -> string_of_int n
+ | Op(oper,x,y) ->    
+    "(" ^ str_of_exp x ^ " " ^ (str_of_biOper oper) 
+    ^ " " ^str_of_exp y ^ ")";;
+
+(*let rec rpn = function 
+  Const n -> " " ^ string_of_int n
+| Sum (e1,e2) -> rpn e1 ^ rpn e2 ^ " +"
+| Pro (e1,e2) -> rpn e1 ^ rpn e2 ^ " *"
+| Dif (e1,e2) -> rpn e1 ^ rpn e2 ^ " ­"
+| Quo (e1,e2) -> rpn e1 ^ rpn e2 ^ " /"
+| Mod (e1,e2) -> rpn e1 ^ rpn e2 ^ " %";;*)
+(*# rpn (Sum(Pro(Const 2, Const 3), Const 1));;
+- : string = " 2 3 * 1 +"*)
+let rec rpn = function
+  | C n -> " " ^ string_of_int n
+  | Op(oper,e1,e2) -> 
+      rpn e1 ^ rpn e2 ^ " " ^ (str_of_biOper oper);;
+
+
+(*(d.) Ponga ejemplos (ilustrativos, pero lo más sencillos 
+que pueda) de valores e: exp tales que*)
+
+(*conmut e = e*)
+let e = Op(Sm, C 2, C 2);;
+conmut e = e;;
+(*conmut e <> e*)
+let e = Op (Sm, Op (Sm, C 2, C 3), C 1);;
+conmut e <> e;;
+(*conmut e = mirror e*)
+let e = Op(Sm, C 2, C 2);;
+conmut e = mirror e;;
+(*conmut e <> mirror e*)
+let e = Op(Sm, Op(Sm, C 2, C 3), C 2);;
+conmut e <> mirror e;;
+(*eval e = eval(conmut e)*)
+let e = Op(Sm, C 2, C 2);;
+eval e = eval(conmut e);;
+(*eval e <> eval(conmut e)*)
+let e = Op(Df, C 3, C 2);;
+eval e <> eval(conmut e);;
+(*eval e = eval(mirror e)*)
+let e = Op(Sm, C 2, C 2);;
+eval e = eval(mirror e);;
+(*eval e <> eval(mirror e)*)
+let e = Op(Df, C 3, C 2);;
+eval e <> eval(mirror e);;
+(*eval e = eval (conmut e) && eval e <> eval (mirror e)*)
+let e  = Op(Sm, Op(Df, C 3, C 5), C 2);;
+eval e = eval (conmut e) && eval e <> eval (mirror e);;
+(*eval e = eval (shift_left e)*)
+let e = Op (Sm, Op (Pr, C 2, C 3), C 1);;
+eval e = eval (shift_left e);;
+(*eval e <> eval (shift_left e)*)
+let e = Op (Qt, C 2, Op(Pr, C 2, C 4));;
+eval e <> eval (shift_left e);; 
+
+
+Práctica 9
+
+--->(twodigits.ml)
+(*APARTADO 1*)
+(*El número de sublistas generadas se deduce la expresión 2^n, 
+    siendo n el número de elementos de la lista original*)
+let rec sublists = function
+    | [] -> [[]]
+    | h::t -> let st = sublists t in
+                 List.map (function l -> h::l) st @ st;;
+(*Función mem : 'a -> 'a list -> bool 
+    que utilizaremos para saber si un elemento está 
+    contenido en una lista*)
+let rec mem x = function
+    | [] -> false
+    | h::t -> (h = x) || (mem x t);;
+(*Función remove : 'a -> 'a list -> 'a list 
+    elimina la primera aparición de un elemento en una lista*)
+let remove e l =
+    let rec aux n = function 
+        | [] -> List.rev n
+        | h::t -> if h <> e 
+                    then aux (h::n) t
+                    else List.rev_append n t
+    in aux [] l;;
+(*Función intersect : 'a list -> 'a list -> 'a list
+    devuelve la intersección de l1 y l2*)
+let rec intersect l1 l2 = 
+    match l1 with
+    | [] -> if l2 = [] 
+             then [] 
+             else intersect l2 l1
+    | h::t ->
+        if mem h l2 
+            then let l2' = remove h l2 
+                  in h::(intersect t l2')
+              else intersect t l2;;
+(*Función is_sublist_of : 'a list -> 'a list -> bool 
+    Por definición la intersección de dos conjuntos disjuntos A y B 
+    es el conjunto vacío.
+    Si las listas l1 y l2 son subconjuntos disjuntos, la 
+    intersección de ambas es el conjunto vacío (la lista vacía).
+    Por lo tanto, si las dos listas tienen algún elemento en común
+    su intersección será distinta de la lista vacía.*)
+let is_sublist_of l1 l2 = (intersect l1 l2) <> [];;
+(*análogamente he definido también la función not_sublist_of*)
+let not_sublist_of l1 l2 = (intersect l1 l2) = [];;
+(*Función search_one
+    ('a  list -> ‘a list -> bool) -> 'a list -> 'a list * 'a list
+    devuelve un par de sublistas de (l1,l2) que 
+    cumplen la propiedad p indicada.
+    Si no existe tal par, se activa la excepción Not_found.*)
+let search_one p l = 
+    let sl = sublists l in 
+        let rec aux1 = function
+            | [] -> raise Not_found
+            | h1::t1 -> 
+                let rec aux2 h1 = function
+                    | [] -> aux1 t1
+                    | h2::t2 -> 
+                        if p h1 h2 && (h1 <> h2)
+                         then (h1,h2)
+                         else (aux2 h1 t2)  
+                in aux2 h1 sl
+        in aux1 sl;;
+(*Función search_all
+    ('a list -> 'a list -> bool) -> 'a list -> ('a list * 'a list) list
+    similar a la anterior, solo que esta vez vamos acumulando los 
+    resultados que encontremos y lo devolvemos todos juntos al final.*)
+let search_all p l =
+    let sl = sublists l in 
+        let rec aux1 accu = function
+            | [] -> if accu <> [] 
+                      then accu
+                      else raise Not_found
+            | h1::t1 -> 
+                let rec aux2 h1 accu = function
+                    | [] -> aux1 accu t1
+                    | h2::t2 -> 
+                        if p h1 h2 && (h1 <> h2)
+                         then aux2 h1 ((h1,h2)::accu) t2
+                         else aux2 h1 accu t2
+                in aux2 h1 accu sl
+        in aux1 [] sl;; 
+
+(*APARTADO 2*)
+(*Función suml : int list -> int
+    suma todos los elementos de una lista de ints.*)
+let suml l = 
+    let rec aux l a =
+        match l with 
+         [] -> a
+        | h::t -> aux t (a+h)
+    in aux l 0;;
+(*Función test_suml : int list -> int list -> bool 
+    es la propiedad de test del juego "Two Digits".*)
+let test_twodigits l1 l2 = (not_sublist_of l1 l2) && (suml l1 = suml l2);;
+
+(*Función valid_question : int list -> bool
+    para que una lista represente una pregunta/puzzle válida/o en
+    el "Two Digits" este debe tener nueve números enteros, que todos 
+    sean menores que 100 y que además la pregunta tenga al menos
+    una respuesta válida. (no considero ([],[]) como respuesta válida).*)
+let valid_question l =     
+    try 
+        let sol = (search_one test_twodigits l)
+        in (List.length l = 9)
+            && not(mem false (List.map (function x -> x<100) l))
+            && (sol <> ([],[]))
+    with Not_found -> false;;
+(*Función solve_twodigits : int list -> (int list * int list) option
+    si la lista l es un puzzle válido según la definición anterior 
+    entonces devuelve una solución válida, si no devuelve None.*)
+let solve_twodigits l = if (valid_question l)
+                         then Some(search_one test_twodigits l)
+                         else None;;
+(*Pseudo-función rlist : int -> int -> int list
+    devuelve una lista de n números enteros "aleatorios" que 
+    varian desde 1 a r-1 (he excluido el 0 por ser un número
+    que no tiene gracia en el contexto de este juego)*)
+let rlist r n = 
+    if r>0 && n>=0 then
+        let rec aux r n l = 
+            if n<1 
+             then l
+             else let random = Random.int r 
+                    in if random <> 0 (*esto es para que se no generen
+                                        listas que contengan algún 0*)
+                        then aux r (n-1) ((random)::l)
+                        else aux r (n-1) ((random+1)::l)
+        in aux r n []
+    else raise (Invalid_argument "rlist");;
+(*Pseudo-función twodigits_puzzle : unit -> int list 
+    genera puzzles hasta que encuentra uno válido según la definición
+    que hemos postulado anteriormente de puzzle válido*)
+let rec twodigits_puzzle () =
+    let puzzle = rlist 100 9
+        in if valid_question puzzle 
+            then puzzle
+            else twodigits_puzzle ();;
+(*Pseudo-función crono : ('a -> 'b) -> 'a -> 'b * float
+    versión modificada de crono que devuelve en el primer
+    elemento de una tupla el resultado de aplicar a una 
+    función f un argumento x y en el segundo elemento
+    el tiempo que ha tardado en realizar esa operación.*)
+let crono f x = 
+        let t = Sys.time () in
+        let resultado = f x in
+        resultado,(Sys.time () -. t);;
+(*Medimos el tiempo y podemos ver si los resultados tienen sentido
+let crono f x = 
+        let t = Sys.time () in
+        let resultado = f x in
+        resultado,(Sys.time () -. t);;
+crono solve_twodigits (twodigits_puzzle ());;
+
+List.length (search_all test_suml (twodigits_puzzle ()));;
+Si ejecutamos esto varias veces podemos ver como mas o menos el
+número de soluciones de un puzzle generado con twodigits_puzzle
+oscila valores mayores de 20 y menores de 70 *)
+
+(*APARTADO 3*)
+let n = 9;;
+(*Función suml_mod256 : int list -> int
+    Esta función suma todos los elementos de una lista en módulo 256*)
+let suml_m256 l = 
+    let rec aux l a =
+        match l with 
+         [] -> ((mod) a 256)
+        | h::t -> aux t (a+h)
+    in aux l 0;;
+(*Función suml_mod_eq : int list -> int list -> bool
+    Comprueba si dos listas suman lo mismo en módulo 256*)
+let test_bytes l1 l2 = (not_sublist_of l1 l2) && (suml_m256 l1 = suml_m256 l2);;
+
+(*Función valid_question_bytes : int list -> bool
+    Nos dice si una lista de enteros representa un puzzle válido.
+    Para que un puzzle sea válido ha de tener n elementos y 
+    por lo menos una solución.*)
+let valid_question_bytes l =     
+    try 
+        let sol = (search_one test_bytes l)
+        in (List.length l = n) && (sol <> ([],[]))
+    with Not_found -> false;;
+(*Pseudo-función bytes_puzzle: unit -> int list
+    genera aleatoriamente puzzles para esta variante del juego.
+    Evidentemente, sólo se generarán puzzles que puedan ser 
+    resueltos.*)
+let rec bytes_puzzle () =
+    let puzzle = rlist 256 n
+        in if valid_question_bytes puzzle 
+            then puzzle
+            else bytes_puzzle ();;
+(*Función solve_bytes: int list -> (int list * int list) option
+    busca soluciones para esta variante del problema.*)
+let solve_bytes l = if (valid_question_bytes l)
+                        then Some(search_one test_bytes l)
+                        else None;;
+
+(*crono solve_bytes (bytes_puzzle ());;
+List.length (search_all test_bytes (bytes_puzzle ()));;
+Si ejecutamos esto varias veces podemos ver como mas o menos el
+número de soluciones de un puzzle generado con bytes_puzzle
+es similar al de twodigits*)
